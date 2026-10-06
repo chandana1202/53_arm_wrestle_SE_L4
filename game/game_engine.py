@@ -116,68 +116,118 @@ class GameEngine:
         self.ai_state_timer = self.AI_NORMAL_DURATION
 
     def render(self, screen):
-        screen.fill((25, 28, 35))
+        screen.fill((30, 30, 30))
 
-        title_surf = self.font_big.render("ARM WRESTLE SHOWDOWN", True, (240, 240, 240))
-        screen.blit(title_surf, (self.width // 2 - title_surf.get_width() // 2, 12))
+        # Draw center line
+        pygame.draw.line(
+            screen,
+            (100, 100, 100),
+            (self.width // 2, 100),
+            (self.width // 2, 400),
+            3
+        )
 
-        player_header = self.font_med.render("PLAYER", True, (80, 160, 255))
-        computer_header = self.font_med.render("COMPUTER", True, (255, 100, 80))
-        screen.blit(player_header, (60, 55))
-        screen.blit(computer_header, (self.width - 150, 55))
+        # Draw table
+        pygame.draw.rect(
+            screen,
+            (120, 80, 40),
+            (100, 350, self.width - 200, 100)
+        )
 
-        table_rect = pygame.Rect(40, 100, self.width - 80, 310)
-        pygame.draw.rect(screen, (110, 50, 15), table_rect, border_radius=14)
-        pygame.draw.rect(screen, (70, 30, 8), table_rect, width=5, border_radius=14)
-
-        pygame.draw.line(screen, (45, 18, 4), (self.width // 2, 100), (self.width // 2, 410), 4)
-
+        # Calculate arm position
         offset_x = (self.arm_position / self.target_limit) * 95
         hand_x = (self.width // 2) + int(offset_x)
-        hand_y = 235
 
-        p_shoulder = (70, 330)
-        p_elbow = (140, 215)
-        c_shoulder = (self.width - 70, 330)
-        c_elbow = (self.width - 140, 215)
+        # Draw arm
+        pygame.draw.line(
+            screen,
+            (220, 180, 140),
+            (self.width // 2, 200),
+            (hand_x, 200),
+            15
+        )
 
-        pygame.draw.line(screen, (200, 145, 110), p_shoulder, p_elbow, 32)
-        pygame.draw.line(screen, (215, 160, 125), p_elbow, (hand_x, hand_y), 26)
-        pygame.draw.circle(screen, (185, 130, 95), p_elbow, 18)
+        # Draw hand
+        pygame.draw.circle(
+            screen,
+            (240, 200, 160),
+            (hand_x, 200),
+            25
+        )
 
-        pygame.draw.line(screen, (170, 110, 85), c_shoulder, c_elbow, 32)
-        pygame.draw.line(screen, (185, 125, 95), c_elbow, (hand_x, hand_y), 26)
-        pygame.draw.circle(screen, (150, 95, 70), c_elbow, 18)
+        # Draw stamina bar
+        stamina_width = 200
+        stamina_height = 20
+        stamina_x = 40
+        stamina_y = 40
 
-        pygame.draw.circle(screen, (225, 175, 140), (hand_x, hand_y), 24)
-        pygame.draw.circle(screen, (160, 115, 85), (hand_x, hand_y), 24, width=3)
+        pygame.draw.rect(
+            screen,
+            (80, 80, 80),
+            (stamina_x, stamina_y, stamina_width, stamina_height)
+        )
 
-        stamina_label = self.font_med.render("STAMINA", True, (220, 220, 220))
-        screen.blit(stamina_label, (40, 445))
+        pygame.draw.rect(
+            screen,
+            (50, 200, 50),
+            (
+                stamina_x,
+                stamina_y,
+                int(stamina_width * (self.stamina / self.max_stamina)),
+                stamina_height
+            )
+        )
 
-        stamina_bg = pygame.Rect(140, 448, 240, 22)
-        stamina_fill = pygame.Rect(140, 448, int(240 * (self.stamina / self.max_stamina)), 22)
-        pygame.draw.rect(screen, (45, 50, 60), stamina_bg, border_radius=6)
-        bar_color = (60, 210, 100) if self.stamina > 25 else (220, 60, 60)
-        pygame.draw.rect(screen, bar_color, stamina_fill, border_radius=6)
+        # Stamina text
+        stamina_text = self.font_med.render(
+            f"Stamina: {int(self.stamina)}",
+            True,
+            (255, 255, 255)
+        )
+        screen.blit(
+            stamina_text,
+            (40, 70)
+        )
 
+        # AI SURGE warning — flashes while AI is in SURGE state
+        if self.ai_state == "SURGE":
+            if int(pygame.time.get_ticks() / 250) % 2 == 0:
+                surge_surf = self.font_big.render(
+                    "AI SURGE!",
+                    True,
+                    (255, 70, 70)
+                )
+                screen.blit(
+                    surge_surf,
+                    (
+                        self.width // 2 - surge_surf.get_width() // 2,
+                        65
+                    )
+                )
+
+        # Player exhaustion indicator
+        if self.stamina < 10:
+            exhausted_surf = self.font_med.render(
+                "EXHAUSTED!",
+                True,
+                (255, 80, 80)
+            )
+            screen.blit(
+                exhausted_surf,
+                (40, 480)
+            )
+
+        # Winner / game over message
         if self.game_state == "GAME_OVER":
-            overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 200))
-            screen.blit(overlay, (0, 0))
-
-            win_text = "PLAYER WINS THE MATCH!" if self.winner == "PLAYER" else "COMPUTER WINS!"
-            color = (80, 240, 100) if self.winner == "PLAYER" else (240, 80, 80)
-            text_surf = self.font_big.render(win_text, True, color)
-            screen.blit(
-                text_surf,
-                (self.width // 2 - text_surf.get_width() // 2, self.height // 2 - 45)
-            )
-
-            restart_surf = self.font_med.render(
-                "Press [R] to Rematch", True, (240, 240, 240)
+            winner_text = self.font_big.render(
+                f"{self.winner} WINS!",
+                True,
+                (255, 255, 255)
             )
             screen.blit(
-                restart_surf,
-                (self.width // 2 - restart_surf.get_width() // 2, self.height // 2 + 10)
+                winner_text,
+                (
+                    self.width // 2 - winner_text.get_width() // 2,
+                    500
+                )
             )
