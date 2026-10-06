@@ -18,7 +18,7 @@ class GameEngine:
         
         self.winner = None
         self.game_state = "PLAYING"
-        self.ai_strength = 0.35
+        self.ai_strength = 0.05
 
         # AI stamina cycle
         self.AI_NORMAL_DURATION = 4.0
@@ -31,6 +31,15 @@ class GameEngine:
 
         self.ai_state = "NORMAL"
         self.ai_state_timer = self.AI_NORMAL_DURATION
+
+        # Counter-surge
+        self.COUNTER_SURGE_WINDOW = 1.5
+        self.COUNTER_SURGE_DURATION = 3.0
+        self.COUNTER_SURGE_PUSH_MULTIPLIER = 2.0
+        self.COUNTER_SURGE_RECOVERY_BOOST = 2.0
+
+        self.counter_surge_window_timer = 0.0
+        self.counter_surge_timer = 0.0
         
         self.font_big = pygame.font.SysFont(None, 44)
         self.font_med = pygame.font.SysFont(None, 26)
@@ -47,24 +56,53 @@ class GameEngine:
                 return
                 
             if event.key == pygame.K_LEFT:
-                if self.last_key != pygame.K_LEFT: 
-                    self.arm_position -= 4.2
+                if self.last_key != pygame.K_LEFT:
+                    push_strength = 6
+
+                    if self.counter_surge_window_timer > 0:
+                        push_strength *= self.COUNTER_SURGE_PUSH_MULTIPLIER
+                        self.counter_surge_timer = self.COUNTER_SURGE_DURATION
+                        self.counter_surge_window_timer = 0.0
+
+                    self.arm_position -= push_strength
                     self.stamina = max(0.0, self.stamina - 2.0)
                     self.last_key = pygame.K_LEFT
+
             elif event.key == pygame.K_RIGHT:
-                if self.last_key != pygame.K_RIGHT: 
-                    self.arm_position += 4.2
+                if self.last_key != pygame.K_RIGHT:
+                    push_strength = 6
+
+                    if self.counter_surge_window_timer > 0:
+                        push_strength *= self.COUNTER_SURGE_PUSH_MULTIPLIER
+                        self.counter_surge_timer = self.COUNTER_SURGE_DURATION
+                        self.counter_surge_window_timer = 0.0
+
+                    self.arm_position += push_strength
                     self.stamina = max(0.0, self.stamina - 2.0)
                     self.last_key = pygame.K_RIGHT
-
 
 
     def update(self):
         if self.game_state != "PLAYING":
             return
 
+        dt = 1 / 60.0
+
+        # Update counter-surge timers
+        if self.counter_surge_window_timer > 0:
+            self.counter_surge_window_timer = max(
+                0.0,
+                self.counter_surge_window_timer - dt
+            )
+
+        if self.counter_surge_timer > 0:
+            self.counter_surge_timer = max(
+                0.0,
+                self.counter_surge_timer - dt
+            )
+
         # Update AI stamina state timer
-        self.ai_state_timer -= 1 / 60.0
+        self.ai_state_timer -= dt
 
         if self.ai_state_timer <= 0:
             if self.ai_state == "NORMAL":
@@ -75,6 +113,9 @@ class GameEngine:
                 self.ai_state = "COOLDOWN"
                 self.ai_state_timer = self.AI_COOLDOWN_DURATION
 
+                # Open counter-surge window
+                self.counter_surge_window_timer = self.COUNTER_SURGE_WINDOW
+
             else:
                 self.ai_state = "NORMAL"
                 self.ai_state_timer = self.AI_NORMAL_DURATION
@@ -82,24 +123,38 @@ class GameEngine:
         # Select AI force based on current stamina state
         if self.ai_state == "SURGE":
             force_multiplier = self.AI_SURGE_MULTIPLIER
+
         elif self.ai_state == "COOLDOWN":
             force_multiplier = self.AI_COOLDOWN_MULTIPLIER
+
         else:
             force_multiplier = self.AI_NORMAL_MULTIPLIER
 
         ai_variance = random.uniform(0.3, 1.0)
+
         self.arm_position += (
             self.ai_strength
             * ai_variance
             * force_multiplier
         )
 
-        if self.stamina < self.max_stamina:
-            self.stamina = min(self.max_stamina, self.stamina + 0.8)
+        # Player stamina recovery
+        recovery = 0.8
 
+        if self.counter_surge_timer > 0:
+            recovery *= self.COUNTER_SURGE_RECOVERY_BOOST
+
+        if self.stamina < self.max_stamina:
+            self.stamina = min(
+                self.max_stamina,
+                self.stamina + recovery
+            )
+
+        # Win conditions
         if self.arm_position <= -self.target_limit:
             self.winner = "PLAYER"
             self.game_state = "GAME_OVER"
+
         elif self.arm_position >= self.target_limit:
             self.winner = "COMPUTER"
             self.game_state = "GAME_OVER"
@@ -114,6 +169,10 @@ class GameEngine:
 
         self.ai_state = "NORMAL"
         self.ai_state_timer = self.AI_NORMAL_DURATION
+
+        self.counter_surge_window_timer = 0.0
+        self.counter_surge_timer = 0.0
+
 
     def render(self, screen):
         screen.fill((30, 30, 30))
@@ -184,6 +243,7 @@ class GameEngine:
             True,
             (255, 255, 255)
         )
+
         screen.blit(
             stamina_text,
             (40, 70)
@@ -197,6 +257,7 @@ class GameEngine:
                     True,
                     (255, 70, 70)
                 )
+
                 screen.blit(
                     surge_surf,
                     (
@@ -205,6 +266,22 @@ class GameEngine:
                     )
                 )
 
+        # Counter-surge indicator
+        if self.counter_surge_timer > 0:
+            counter_surge_surf = self.font_big.render(
+                "COUNTER-SURGE!",
+                True,
+                (80, 240, 255)
+            )
+
+            screen.blit(
+                counter_surge_surf,
+                (
+                    self.width // 2 - counter_surge_surf.get_width() // 2,
+                    110
+                )
+            )
+
         # Player exhaustion indicator
         if self.stamina < 10:
             exhausted_surf = self.font_med.render(
@@ -212,6 +289,7 @@ class GameEngine:
                 True,
                 (255, 80, 80)
             )
+
             screen.blit(
                 exhausted_surf,
                 (40, 480)
@@ -224,6 +302,7 @@ class GameEngine:
                 True,
                 (255, 255, 255)
             )
+
             screen.blit(
                 winner_text,
                 (
