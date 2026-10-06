@@ -18,11 +18,24 @@ class GameEngine:
         
         self.winner = None
         self.game_state = "PLAYING"
-        self.ai_strength = 0.35  
+        self.ai_strength = 0.35
+
+        # AI stamina cycle
+        self.AI_NORMAL_DURATION = 4.0
+        self.AI_SURGE_DURATION = 1.5
+        self.AI_COOLDOWN_DURATION = 3.0
+
+        self.AI_NORMAL_MULTIPLIER = 1.0
+        self.AI_SURGE_MULTIPLIER = 3.0
+        self.AI_COOLDOWN_MULTIPLIER = 0.25
+
+        self.ai_state = "NORMAL"
+        self.ai_state_timer = self.AI_NORMAL_DURATION
         
         self.font_big = pygame.font.SysFont(None, 44)
         self.font_med = pygame.font.SysFont(None, 26)
 
+        
     def handle_event(self, event):
         if self.game_state != "PLAYING":
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
@@ -44,12 +57,42 @@ class GameEngine:
                     self.stamina = max(0.0, self.stamina - 2.0)
                     self.last_key = pygame.K_RIGHT
 
+
+
     def update(self):
         if self.game_state != "PLAYING":
             return
 
+        # Update AI stamina state timer
+        self.ai_state_timer -= 1 / 60.0
+
+        if self.ai_state_timer <= 0:
+            if self.ai_state == "NORMAL":
+                self.ai_state = "SURGE"
+                self.ai_state_timer = self.AI_SURGE_DURATION
+
+            elif self.ai_state == "SURGE":
+                self.ai_state = "COOLDOWN"
+                self.ai_state_timer = self.AI_COOLDOWN_DURATION
+
+            else:
+                self.ai_state = "NORMAL"
+                self.ai_state_timer = self.AI_NORMAL_DURATION
+
+        # Select AI force based on current stamina state
+        if self.ai_state == "SURGE":
+            force_multiplier = self.AI_SURGE_MULTIPLIER
+        elif self.ai_state == "COOLDOWN":
+            force_multiplier = self.AI_COOLDOWN_MULTIPLIER
+        else:
+            force_multiplier = self.AI_NORMAL_MULTIPLIER
+
         ai_variance = random.uniform(0.3, 1.0)
-        self.arm_position += self.ai_strength * ai_variance
+        self.arm_position += (
+            self.ai_strength
+            * ai_variance
+            * force_multiplier
+        )
 
         if self.stamina < self.max_stamina:
             self.stamina = min(self.max_stamina, self.stamina + 0.8)
@@ -61,12 +104,16 @@ class GameEngine:
             self.winner = "COMPUTER"
             self.game_state = "GAME_OVER"
 
+
     def reset(self):
         self.arm_position = 0.0
         self.stamina = 100.0
         self.last_key = None
         self.winner = None
         self.game_state = "PLAYING"
+
+        self.ai_state = "NORMAL"
+        self.ai_state_timer = self.AI_NORMAL_DURATION
 
     def render(self, screen):
         screen.fill((25, 28, 35))
